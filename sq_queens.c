@@ -2,6 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*Optimization ideas: Each half done solution can be flipped over y axis to generate another solution
+                      Use bitmaps to denote if a queen is hittin square or not
+
+https://codereview.stackexchange.com/questions/196509/parallel-solutions-to-n-queens-puzzle (good stackoverflow3)
+https://www.geeksforgeeks.org/printing-solutions-n-queen-problem/ (implementation of bitmap)
+Use performance profiles, Geometric means in report
+*/
+
 int num_sol = 0;
 int n = 8;
 int board[8][8];
@@ -29,8 +37,22 @@ void swap_index(int perm[], int i, int j){
     perm[j] = temp_swap;
 }
 
-void generate_branch(int perm[], int k, int size_p){
+int is_attacked(int perm[], int k){
 
+int dL_index = perm[k] + k;
+int dR_index = perm[k] - k;
+for (int i = 0; i < k; i++){
+    int dL_i = perm[i] + i;
+    int dR_i = perm[i] - i;
+    if (dL_index == dL_i || dR_index == dR_i){
+        return 1;
+    }
+}
+return 0;
+}
+
+void generate_branch(int perm[], int k, int size_p){
+    printf("New function call: k=%d \n", k);
     for (int i = k + 1; i < size_p; i++){
         int *to_swap = malloc(size_p*sizeof(int));
         memcpy(to_swap, perm, size_p*sizeof(int));
@@ -53,14 +75,103 @@ void generate_branch(int perm[], int k, int size_p){
     }
 
 }
-void recursive_search(int perm[], int base[], int size_p){
+
+void generate_branch_queens(int perm[], int k, int size_p){
     for (int z = 0; z < size_p; z++){
-            printf("%d ", base[z]);
+        printf("%d ", perm[z]);
     }
-    printf("\n");
+    printf(" k = %d\n",k);
+
+    if (k == size_p-1){   
+        if (is_attacked(perm, k) == 0){
+            printf("solution!! Checked %d\n", k);
+            num_sol += 1;
+            // for (int z = 0; z < size_p; z++){
+            //     printf("%d ", perm[z]);
+            // }
+            // printf("\n");
+        }
+        return;
+    }
+
+
+    for (int i = k + 1; i < size_p; i++){
+        int *to_swap = malloc(size_p*sizeof(int));
+        memcpy(to_swap, perm, size_p*sizeof(int));
+
+        swap_index(to_swap, i, k);
+
+        num_evals += 1;
+
+
+
+        if (k < size_p - 1 && is_attacked(to_swap, k) == 0){
+            for (int j = k + 1; j < size_p; j++){
+
+                printf("Called recursion: k = %d \nCalled by: ", j);
+                for (int z = 0; z < size_p; z++){
+                    printf("%d ", perm[z]);
+                }
+                printf("\n");
+                
+                generate_branch_queens(to_swap, j, size_p);
+            }
+        }
+        free(to_swap);
+    }
+}
+void generate_branch_queens_test(int perm[], int k, int size_p){
+    num_evals += 1;
+
+    if (k == size_p-1){   
+        if (is_attacked(perm, k) == 0){
+            printf("solution!! Checked %d\n", k);
+            num_sol += 1;
+            for (int z = 0; z < size_p; z++){
+                printf("%d ", perm[z]);
+            }
+            printf("\n");
+        }
+        return;
+    }
+    for (int i = k; i < size_p; i++){
+        int *to_swap = malloc(size_p*sizeof(int));
+        memcpy(to_swap, perm, size_p*sizeof(int));
+        swap_index(to_swap, i, k);
+        if (is_attacked(to_swap, k) == 0){
+            printf("Called recursion: k = %d \nCalled by: ", k+1);
+            for (int z = 0; z < size_p; z++){
+                printf("%d ", perm[z]);
+            }
+            printf("\n");
+            generate_branch_queens_test(to_swap, k+1, size_p);
+        }
+        free(to_swap);
+    }
+}
+
+
+// def explore(ntries, n, perm, index):
+//    if index == n - 1:
+//       if is_safe(perm, index):
+//          yield perm
+//       return
+//    # create all single swaps at index with equal or greater indices
+//    for i in range(index, n):
+//       perm_i = list(perm)
+//       perm_i[index], perm_i[i] = perm[i], perm[index]
+//       next(ntries)
+//       # check the diagonals for all smaller indices
+//       if is_safe(perm_i, index):
+//          # call the recursion with the next index
+//          for p in explore(ntries, n, perm_i, index+1):
+//             yield p
+
+
+void recursive_search(int perm[], int base[], int size_p){
     for (int i = 0; i < size_p; i++){
         memcpy(perm, base, sizeof(perm[0])*size_p);
-        generate_branch(perm, i, size_p);
+        generate_branch_queens_test(perm, i, size_p);
     }
 }
 
@@ -156,5 +267,6 @@ int main( int argc, char ** argv ) {
     int size_p = sizeof(test)/sizeof(test[0]);
     recursive_search(test, base, size_p);
     printf("Num evals %ld \n", num_evals);
+    printf("Num sol: %d", num_sol);
 
 }
