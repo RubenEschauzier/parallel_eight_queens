@@ -120,6 +120,35 @@ void generate_branch_queens(int perm[], int k, int size_p){
         free(to_swap);
     }
 }
+
+void gbq_test(int perm[], int k, int size_p){
+    num_evals += 1;
+
+    
+    for (int i = k+1; i < size_p; i++){
+        // Create new array to swap to ensure that in future recursions the starting array is correct
+        int *to_swap = malloc(size_p*sizeof(int));
+        memcpy(to_swap, perm, size_p*sizeof(int));
+
+        swap_index(to_swap, i, k);
+        printf("Permutations: \n");
+        for (int z = 0; z < size_p; z++){
+            printf("%d ", to_swap[z]);
+        }
+        printf("\n");
+        printf("K = %d \n", k);
+        printf("Attacked: %d \n", is_attacked(to_swap, k));
+
+        if (is_attacked(to_swap, k) == 0){
+            for (int j = i+1; j<size_p; j++){
+                gbq_test(to_swap, j, size_p);
+            }
+        }
+
+        free(to_swap);
+    }
+}
+
 void generate_branch_queens_test(int perm[], int k, int size_p){
     num_evals += 1;
 
@@ -134,19 +163,25 @@ void generate_branch_queens_test(int perm[], int k, int size_p){
         }
         return;
     }
-    for (int i = k; i < size_p; i++){
-        int *to_swap = malloc(size_p*sizeof(int));
-        memcpy(to_swap, perm, size_p*sizeof(int));
-        swap_index(to_swap, i, k);
-        if (is_attacked(to_swap, k) == 0){
-            printf("Called recursion: k = %d \nCalled by: ", k+1);
-            for (int z = 0; z < size_p; z++){
-                printf("%d ", perm[z]);
+    else{
+        for (int i = k; i < size_p; i++){
+
+            int *to_swap = malloc(size_p*sizeof(int));
+            memcpy(to_swap, perm, size_p*sizeof(int));
+            swap_index(to_swap, i, k);
+
+            if (is_attacked(to_swap, k) == 0){
+
+                printf("Called recursion: k = %d \nCalled by: ", k+1);
+                for (int z = 0; z < size_p; z++){
+                    printf("%d ", perm[z]);
+                }
+                printf("\n");
+
+                generate_branch_queens_test(to_swap, k+1, size_p);
             }
-            printf("\n");
-            generate_branch_queens_test(to_swap, k+1, size_p);
+            free(to_swap);
         }
-        free(to_swap);
     }
 }
 
@@ -262,8 +297,8 @@ int main( int argc, char ** argv ) {
     
     // backtracking_solver();
     // printf("Num sols: %d \n", num_sol);
-    int test[4] = {0,1,2,3};
-    int base[4] = {0,1,2,3};
+    int test[5] = {0,1,2,3,4};
+    int base[5] = {0,1,2,3,4};
     int size_p = sizeof(test)/sizeof(test[0]);
     recursive_search(test, base, size_p);
     printf("Num evals %ld \n", num_evals);
