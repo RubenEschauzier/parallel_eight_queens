@@ -184,5 +184,4 @@ int main( int argc, char ** argv ) {
     recursive_search(test, size_p);
     printf("Num evals %ld \n", num_evals);
     printf("Num sol: %d", num_sol);
-
 }
