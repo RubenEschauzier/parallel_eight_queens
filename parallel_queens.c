@@ -198,7 +198,7 @@ void spmd_search_unbalanced() {
         total_solutions += solutions_per_p[j];
     }
     if (s == 0){
-        printf("We found %ld solutions. \ncd ", total_solutions);
+        printf("We found %ld solutions. \n", total_solutions);
     }
 
     //printf("P%ld: %ld  \n", s, work_load);
@@ -311,7 +311,7 @@ void spmd_search_load_balanced(){
     bsp_sync();
     bsp_end();
 }
-void run_experiment(int num_runs, int argc, char**argv){
+double run_experiment(int num_runs, int argc, char**argv){
     struct timespec begin, end;
     double timings[num_runs];
 
@@ -332,10 +332,11 @@ void run_experiment(int num_runs, int argc, char**argv){
     }
     average_timing /= num_runs;
     printf("Average Time: %f \n", average_timing);
+    return average_timing;
 }
-write
 
 int main( int argc, char ** argv ) {
+    // https://stackoverflow.com/questions/10479446/what-should-i-do-to-get-the-whole-return-value-of-c-program-from-command-line
     if (atoi(argv[1]) > MAX_N || atoi(argv[2]) > MAX_P){
         printf("Exceeded MAX_N or MAX_P. \n");
         return EXIT_FAILURE;
