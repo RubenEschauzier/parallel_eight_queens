@@ -1,0 +1,9 @@
+!/usr/bin/bash
+
+echo "Hello, world!"
+echo "Command line one $1"
+MAX_N = $1
+MAX_P = $2
+echo "$MAX_N"
+echo "$MAX_P"
+
