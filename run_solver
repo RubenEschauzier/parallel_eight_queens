@@ -1,0 +1,17 @@
+#!/usr/bin/bash
+
+while getopts n:p: flag
+do
+    case "${flag}" in
+        n) n=${OPTARG};;
+        p) p=${OPTARG};;
+    esac
+done
+
+for((z=4;z<=n;z+=2)); do
+        echo "Running Experiment with n=$z."
+        ./bin/parallel_queens $z $p
+done
+
+
+

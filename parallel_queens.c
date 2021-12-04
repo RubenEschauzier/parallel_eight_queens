@@ -47,6 +47,20 @@ int is_attacked(int perm[], int k){
     }
     return 0;
 }
+void write_to_file(double timings[], int max_p){
+    FILE *f = fopen("log/nqueens_all", "a");
+    fprintf(f, "n");
+    for (int i=1;i<max_p+1;i++){
+        fprintf(f, ", %d",i);
+    }
+    fprintf(f, "\n%d", n);
+    for (int j=0;j<max_p;j++){
+        fprintf(f, ", %f", timings[j]);
+    }
+    fprintf(f, "\n");
+    fclose(f);
+}
+
 
 void generate_branch_queens(unsigned long* solutions, int perm[], int k, unsigned int size_p){
     /*  Index of given node is index += size_p - (k+1) * index in loop
@@ -198,10 +212,12 @@ void spmd_search_unbalanced() {
         total_solutions += solutions_per_p[j];
     }
     if (s == 0){
-        printf("We found %ld solutions. \n", total_solutions);
+        //printf("We found %ld solutions. \n", total_solutions);
     }
 
     //printf("P%ld: %ld  \n", s, work_load);
+    bsp_pop_reg(solutions_per_p);
+    bsp_sync();
     bsp_end();
 }
 
@@ -311,11 +327,11 @@ void spmd_search_load_balanced(){
     bsp_sync();
     bsp_end();
 }
-double run_experiment(int num_runs, int argc, char**argv){
+double run_experiment(int n_runs, int argc, char**argv){
     struct timespec begin, end;
-    double timings[num_runs];
+    double timings[n_runs];
 
-    for (int i = 0; i < num_runs; ++i){
+    for (int i = 0; i < n_runs; ++i){
         clock_gettime(CLOCK_MONOTONIC_RAW, &begin);
 
         bsp_init(&spmd_search_unbalanced, argc, argv );
@@ -327,12 +343,22 @@ double run_experiment(int num_runs, int argc, char**argv){
     }
     
     double average_timing = 0;
-    for (int j = 0; j < num_runs; ++j){
+    for (int j = 0; j < n_runs; ++j){
         average_timing += timings[j];
     }
-    average_timing /= num_runs;
+    average_timing /= n_runs;
     printf("Average Time: %f \n", average_timing);
     return average_timing;
+}
+
+void run_multiple_experiment(int n_runs, int max_p, int argc, char**argv){
+    double experiment_timings[max_p-1];
+    for (int i=1;i<max_p+1;i++){
+        P = i;
+        experiment_timings[i-1] = run_experiment(n_runs, argc, argv);
+    }
+    write_to_file(experiment_timings, max_p);
+
 }
 
 int main( int argc, char ** argv ) {
@@ -347,14 +373,15 @@ int main( int argc, char ** argv ) {
     for (int i = 0; i < n; i++){
         input_array[i] = i;
     }
+    run_multiple_experiment(100, atoi(argv[2]), argc, argv);
     // for (int i = 1; i < 16; i++){
     //     P = i;
     //     printf("Running Experiment %d: \n", P);
     //     run_experiment(1000, argc, argv);
     // }
     //run_experiment(1000, argc, argv);
-    bsp_init(&spmd_search_unbalanced, argc, argv);
-    spmd_search_unbalanced();
+    // bsp_init(&spmd_search_unbalanced, argc, argv);
+    // spmd_search_unbalanced();
     //printf("Solutions found: %ld \n", num_sol);
 
     return EXIT_SUCCESS;
