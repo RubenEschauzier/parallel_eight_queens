@@ -31,15 +31,13 @@ struct Queue* createQueue(int capacity, int size_perm)
     struct Queue* queue = (struct Queue*)malloc(
         sizeof(struct Queue));
 
-    int** perm_array = malloc(queue->capacity * sizeof(int)*size_perm);
-
     queue->capacity = capacity;
 
     queue->front = 0;
     queue->size = 0;
     queue->rear = capacity - 1;
 
-    queue->array = perm_array;
+    queue->array = malloc(queue->capacity * sizeof(int)*size_perm);;
     return queue;
 }
  
@@ -286,10 +284,10 @@ void divide_work_queue(unsigned long* solutions, unsigned long* work_load, long 
         //         printf(", %d", work[i]);
         //     }
         // printf("] \n");
-        printf("P%ld, Dequeued: %d, division_counter: %d \n", proc_num, work[0], branch_division_counter);
+        //printf("P%ld, Dequeued: %d, division_counter: %d \n", proc_num, work[0], branch_division_counter);
 
         if (branch_division_counter % P == proc_num){
-            printf("P%ld, Div_c %d\n", proc_num, branch_division_counter);
+            //printf("P%ld, Div_c %d\n", proc_num, branch_division_counter);
             *work_load += 1;
             generate_branch_queens(solutions, work, division_depth, size_p);
         }
@@ -314,7 +312,8 @@ void spmd_search_queue(){
         to_divide = to_divide * n - it_depth;
         it_depth += 1;
     }
-    it_depth = 2;
+    // Add one to required depth to ensure more even distribution of work
+    it_depth += 1;
     // For testing purposes
     divide_work_queue(&solutions, &work_load, s, it_depth, input_array, n);
 
@@ -336,6 +335,7 @@ void spmd_search_queue(){
 
     printf("P%ld: %ld  \n", s, work_load);
     bsp_pop_reg(solutions_per_p);
+    bsp_sync();
     bsp_end();
  
 }
