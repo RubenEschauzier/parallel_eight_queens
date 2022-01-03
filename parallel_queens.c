@@ -19,6 +19,74 @@ int new_work_input[MAX_P*(MAX_N+1)];
 int finished_sending[MAX_P];
 int input_array[MAX_N];
 
+struct Queue {
+    int front, rear, size;
+    int capacity;
+    int** array;
+};
+
+struct Queue* createQueue(int capacity, int size_perm)
+{
+
+    struct Queue* queue = (struct Queue*)malloc(
+        sizeof(struct Queue));
+
+    int** perm_array = malloc(queue->capacity * sizeof(int)*size_perm);
+
+    queue->capacity = capacity;
+
+    queue->front = 0;
+    queue->size = 0;
+    queue->rear = capacity - 1;
+
+    queue->array = perm_array;
+    return queue;
+}
+ 
+// Queue is full when size becomes
+// equal to the capacity
+int isFull(struct Queue* queue)
+{
+    return (queue->size == queue->capacity);
+}
+ 
+// Queue is empty when size is 0
+int isEmpty(struct Queue* queue)
+{
+    return (queue->size == 0);
+}
+ 
+// Function to add an item to the queue.
+// It changes rear and size
+void enqueue(struct Queue* queue, int* item)
+{
+
+    if (isFull(queue))
+        return;
+
+    queue->rear = (queue->rear + 1)
+                  % queue->capacity;
+    queue->array[queue->rear] = item;
+    queue->size += 1;
+
+}
+ 
+// Function to remove an item from queue.
+// It changes front and size
+int* dequeue(struct Queue* queue)
+{
+    if (isEmpty(queue)){
+        return NULL;
+    }
+    int* item = queue->array[queue->front];
+
+    queue->front = (queue->front + 1)
+                   % queue->capacity;
+    queue->size += - 1;
+    return item;
+}
+
+
 
 int fact(int i){
     /* factorial function */
@@ -176,6 +244,101 @@ void divide_work(unsigned long* solutions, unsigned long* work_load, long proc_n
         }
     }
 }
+void divide_work_queue(unsigned long* solutions, unsigned long* work_load, long proc_num, 
+                       int dist_depth, int perm[], unsigned int size_p){
+
+    struct Queue* queue = createQueue(500, size_p);
+    int division_depth = 0;
+    for(int j=division_depth;j<size_p;j++){
+
+        int *to_swap = malloc(size_p*sizeof(int));
+        memcpy(to_swap, perm, size_p*sizeof(int));
+        swap_index(to_swap, j, division_depth);
+        if (is_attacked(to_swap, division_depth) == 0){
+            enqueue(queue, to_swap);
+        }
+    }
+    division_depth += 1;
+    for (int i=1; i<dist_depth;i++){
+
+        int current_q_size = queue->size;
+        for(int l=0; l<current_q_size;l++){
+
+            int* stack_perm = dequeue(queue);
+            for(int z = division_depth; z<size_p;z++){
+                int *to_swap = malloc(size_p*sizeof(int));
+                memcpy(to_swap, stack_perm, size_p*sizeof(int));
+                swap_index(to_swap, z, division_depth);
+
+                if (is_attacked(to_swap, division_depth) == 0){
+                    enqueue(queue, to_swap);
+                }
+            }
+        }
+        division_depth += 1;
+    }
+    int branch_division_counter = 0;
+    int max_q_size = queue->size;
+    for(int q = 0; q<max_q_size; q++){
+        int* work = dequeue(queue);
+        // printf("Deq'd: [%d", work[0]);
+        //     for (int i=1; i<n;i++){
+        //         printf(", %d", work[i]);
+        //     }
+        // printf("] \n");
+        printf("P%ld, Dequeued: %d, division_counter: %d \n", proc_num, work[0], branch_division_counter);
+
+        if (branch_division_counter % P == proc_num){
+            printf("P%ld, Div_c %d\n", proc_num, branch_division_counter);
+            *work_load += 1;
+            generate_branch_queens(solutions, work, division_depth, size_p);
+        }
+        branch_division_counter += 1;
+
+    }
+    free(queue);
+}
+void spmd_search_queue(){
+    bsp_begin(P);
+    long s = bsp_pid();
+    unsigned long work_load = 0;
+    unsigned long solutions = 0;
+    unsigned long solutions_per_p[P];
+    bsp_push_reg(solutions_per_p, P*sizeof(long));
+    bsp_sync();
+
+    int to_divide = n;
+    int it_depth = 1;
+    while (P > to_divide){
+        // Each layer of depth represents a part of the n! number of permutations
+        to_divide = to_divide * n - it_depth;
+        it_depth += 1;
+    }
+    it_depth = 2;
+    // For testing purposes
+    divide_work_queue(&solutions, &work_load, s, it_depth, input_array, n);
+
+    // Broadcast the number of solutions each processor found
+    for (int i=0;i<P;i++){
+        bsp_put(i, &solutions, solutions_per_p, sizeof(long)*s, sizeof(long));
+    }
+
+    bsp_sync();
+
+    // We add up all solutions found by the processors
+    unsigned long total_solutions = 0;
+    for (int j=0;j<P;j++){
+        total_solutions += solutions_per_p[j];
+    }
+    if (s == 0){
+        printf("We found %ld solutions. \n", total_solutions);
+    }
+
+    printf("P%ld: %ld  \n", s, work_load);
+    bsp_pop_reg(solutions_per_p);
+    bsp_end();
+ 
+}
 
 void spmd_search_unbalanced() {
     /* Search all solutions in an unbalanced matter, meaning we do not care if one processor is done as
@@ -212,121 +375,15 @@ void spmd_search_unbalanced() {
         total_solutions += solutions_per_p[j];
     }
     if (s == 0){
-        //printf("We found %ld solutions. \n", total_solutions);
+        printf("We found %ld solutions. \n", total_solutions);
     }
 
-    //printf("P%ld: %ld  \n", s, work_load);
+    printf("P%ld: %ld  \n", s, work_load);
     bsp_pop_reg(solutions_per_p);
     bsp_sync();
     bsp_end();
 }
 
-void spmd_search_load_balanced(){
-    /*Search all solutions while making sure that when a processor is done he gets another node to work
-    from*/
-    // Use send instead of put! This seems to do what we want
-    bsp_begin(P);
-
-    srand(time(NULL)); 
-    long s = bsp_pid();   
-    unsigned long solutions = 0;
-    unsigned long work_load = 0;
-
-
-
-
-    int total_branches[P];
-    int new_work_input[P*(n+1)];
-    int finished_sending[P];
-    int p_proposition = -1;
-
-    // Make sure we have enough branches to divide 
-    int to_divide = n;
-    int it_depth = 1;
-    while (P > to_divide){
-        // Each layer of depth represents a part of the n! number of permutations
-        to_divide = to_divide * n - it_depth;
-        it_depth += 1;
-    }
-    int branches = to_divide % P;
-    // Push the required variables so we can signal when a processor needs work
-    bsp_push_reg(request_work, 2*P*sizeof(int));
-    bsp_push_reg(new_work_input, P*(n+1)*sizeof(int));
-    bsp_push_reg(finished_sending, P*sizeof(int));
-    bsp_sync();
-
-
-    divide_work(&solutions, &work_load, s, it_depth, 0, input_array, 0, n, 1);
-    // When a processor is done we immediataly push a request for more work by using high performance put
-    // We randomly assign a processor that is still working for our current processor to request from
-    int all_done = 0;
-    // while (!all_done){
-        
-    //     int proc = rand() % P;
-    //     if (!request_work[2*proc] && proc != s){
-    //         p_proposition = proc;
-    //     }
-    //     if (p_proposition != -1){
-    //         printf("First to send: P%ld to P%d\n", s, p_proposition);
-    //         bsp_hpsend(p_proposition, &bool_true, &s, sizeof(int));
-    //     }
-    //}
-    while (!all_done){
-        // Pick a random processor
-        int proc = rand() % P;
-        // Check if the processor is not already requesting work
-        if(!request_work[2*proc]){
-            p_proposition = proc;
-        }
-        // If there exists a processor that has work we get it
-        if(p_proposition != -1){
-            // Put out request for work
-            bsp_hpput(s, &bool_true, request_work, 2*s*sizeof(int), sizeof(int));
-            bsp_hpput(s, &p_proposition, request_work, ((2*s)+1)*sizeof(int), sizeof(int));
-            bsp_sync();
-            printf("P %ld: ", s);
-            for (int j = 0; j<P*2; j++){
-                printf("%d ", request_work[j]);
-            }
-            printf("\n");
-
-
-
-            // Keep looping untill processor p_proposition has sent us work or processor p_proposition needs
-            // work themselves
-            while (!request_work[p_proposition]){
-                // printf("P%ld: ", s);
-                // for (int j = 0; j<n; j++){
-                //     printf("%d ", request_work[j]);
-                // }
-                // printf("\n");
-
-                // If the processor has finished sending us work, we call recursion on given work
-                if(finished_sending[s] && request_work[s]){
-                    int new_permutation[n];
-                    for (int i=0;i<n;i++){
-                        new_permutation[i] = new_work_input[s*(n+1)+i];
-                    } 
-                    generate_branch_load_balance(s, new_permutation, new_work_input[s*(n+1)+n], n);
-                }
-            }
-        }
-        all_done = 1;
-        for (int i=0;i<P;i++){
-            if (request_work[2*i] == 0){
-                all_done = 0;
-            }
-        }
-        p_proposition = -1;
-    }
-    bsp_pop_reg(&request_work);
-    bsp_pop_reg(&new_work_input);
-    bsp_pop_reg(&finished_sending);
-    // If we find a processor we can request from we perform our request, else we just end program since 
-    // we're the last working processor
-    bsp_sync();
-    bsp_end();
-}
 double run_experiment(int n_runs, int argc, char**argv){
     struct timespec begin, end;
     double timings[n_runs];
@@ -373,16 +430,15 @@ int main( int argc, char ** argv ) {
     for (int i = 0; i < n; i++){
         input_array[i] = i;
     }
-    run_multiple_experiment(100, atoi(argv[2]), argc, argv);
+    //run_multiple_experiment(100, atoi(argv[2]), argc, argv);
     // for (int i = 1; i < 16; i++){
     //     P = i;
     //     printf("Running Experiment %d: \n", P);
     //     run_experiment(1000, argc, argv);
     // }
     //run_experiment(1000, argc, argv);
-    // bsp_init(&spmd_search_unbalanced, argc, argv);
-    // spmd_search_unbalanced();
-    //printf("Solutions found: %ld \n", num_sol);
+    bsp_init(&spmd_search_queue, argc, argv);
+    spmd_search_queue();
 
     return EXIT_SUCCESS;
 }
